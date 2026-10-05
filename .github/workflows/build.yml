@@ -1,0 +1,120 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: JavaScript syntax
+        # LuCI 视图是带顶层 return 的脚本，包一层函数再交给 node 检查
+        run: |
+          for f in htdocs/luci-static/resources/view/*.js; do
+            { echo '(function(){'; cat "$f"; echo '})'; } > /tmp/check.js
+            node --check /tmp/check.js && echo "ok $f"
+          done
+
+      - name: JSON
+        run: |
+          for f in $(find root -name '*.json'); do
+            python3 -m json.tool "$f" > /dev/null && echo "ok $f"
+          done
+
+      - name: Shell
+        run: shellcheck -s sh -S warning scripts/*.sh tests/*.sh root/etc/init.d/mihomo-traffic
+
+  test:
+    # 用 OpenWrt 官方 rootfs 里的 ucode 跑：编译检查 + 造数据验证查询结果
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Smoke test in OpenWrt rootfs
+        run: docker run --rm -v "$PWD:/src:ro" openwrt/rootfs:x86-64-v25.12.5 /bin/sh /src/tests/smoke.sh
+
+  build:
+    needs: [ lint, test ]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 25.12 起包管理是 apk，24.10 还是 opkg；插件与架构无关，一个 SDK 打出的包所有架构通用
+          - sdk: x86-64-v25.12.5
+            format: apk
+          - sdk: x86-64-v24.10.8
+            format: ipk
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare feed
+        # SDK 要求包在 feed 的子目录里，仓库根目录本身就是包，拷一份过去
+        run: |
+          mkdir -p "$RUNNER_TEMP/feed/luci-app-mihomo-traffic"
+          cp -a Makefile LICENSE htdocs root "$RUNNER_TEMP/feed/luci-app-mihomo-traffic/"
+          mkdir -p "$RUNNER_TEMP/artifacts"
+
+      - name: Build with OpenWrt SDK
+        uses: openwrt/gh-action-sdk@v11
+        env:
+          CONTAINER: openwrt/sdk
+          ARCH: ${{ matrix.sdk }}
+          FEED_DIR: ${{ runner.temp }}/feed
+          ARTIFACTS_DIR: ${{ runner.temp }}/artifacts
+          PACKAGES: luci-app-mihomo-traffic
+          NO_REFRESH_CHECK: 1
+          NO_SHFMT_CHECK: 1
+
+      - name: Collect package
+        run: |
+          mkdir -p dist
+          find "$RUNNER_TEMP/artifacts/bin" -name "luci-app-mihomo-traffic*.${{ matrix.format }}" -exec cp {} dist/ \;
+          ls -l dist
+          test -n "$(ls dist)"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.format }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check tag matches PKG_VERSION
+        run: |
+          version=$(sed -n 's/^PKG_VERSION:=//p' Makefile)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != Makefile v$version"; exit 1; }
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cd ..
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" \
+            --notes "安装方式见 [README](https://github.com/${GITHUB_REPOSITORY}#安装)。\`.apk\` 适用于 OpenWrt / ImmortalWrt 25.12 及以后，\`.ipk\` 适用于 24.10。插件与 CPU 架构无关。" \
+            --verify-tag

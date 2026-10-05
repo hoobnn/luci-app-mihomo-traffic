@@ -6,8 +6,9 @@
 import * as fs from 'fs';
 import { cursor } from 'uci';
 
-export const DATA_DIR = '/etc/mihomo-traffic';
-export const CUR_FILE = '/tmp/mihomo-traffic.cur';
+// 环境变量只给测试用，正常运行都走默认路径
+export const DATA_DIR = getenv('MIHOMO_TRAFFIC_DATA') ?? '/etc/mihomo-traffic';
+export const CUR_FILE = getenv('MIHOMO_TRAFFIC_CUR') ?? '/tmp/mihomo-traffic.cur';
 export const KEEP_DAYS = 30;
 
 // Inner 连接（链式代理承载、DoH 等）与设备连接是同一份流量，统计合计时剔除
@@ -122,7 +123,12 @@ function load_rows(hours) {
 		let f = split(k, '\t');
 		push(rows, [cur_bucket, f[0], f[1], f[2], v[0], v[1]]);
 	}
-	return { since, first: rows[0]?.[0] ?? cur_bucket, step: daily ? 'day' : 'hour', rows };
+	// 不假设文件内按时间排序，取最早的时段作为趋势图起点
+	let first = cur_bucket;
+	for (let r in rows)
+		if (first == null || r[0] < first)
+			first = r[0];
+	return { since, first, step: daily ? 'day' : 'hour', rows };
 }
 
 // 从 first 到现在的连续时段序列：没有流量（或采集停了）的时段也占位，图表时间轴才不会跳

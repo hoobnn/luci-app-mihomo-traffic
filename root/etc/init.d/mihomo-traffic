@@ -1,6 +1,7 @@
 #!/bin/sh /etc/rc.common
 # mihomo-traffic：按来源设备 / 出口节点 / 目标累计 OpenClash(mihomo) 流量，见 /usr/bin/mihomo-traffic
 
+# shellcheck disable=SC2034 # 由 /etc/rc.common 读取
 START=99
 USE_PROCD=1
 
