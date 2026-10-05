@@ -1,0 +1,13 @@
+{
+	"admin/status/mihomo-traffic": {
+		"title": "Mihomo 流量",
+		"order": 80,
+		"action": {
+			"type": "view",
+			"path": "mihomo-traffic"
+		},
+		"depends": {
+			"acl": [ "luci-app-mihomo-traffic" ]
+		}
+	}
+}

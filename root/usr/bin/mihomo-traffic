@@ -1,0 +1,136 @@
+#!/usr/bin/ucode
+// mihomo-traffic：每秒轮询 mihomo /connections，按「来源设备 / 出口节点 / 目标」累计流量。
+//   mihomo-traffic run                      常驻采集（由 /etc/init.d/mihomo-traffic 托管）
+//   mihomo-traffic stats [小时数] [维度]    汇总；维度 src|node|host|src,host|src,node（默认 src）
+// 数据：当前小时在内存，每分钟快照到 /tmp/mihomo-traffic.cur；整点后按小时写入 /etc/mihomo-traffic/YYYY-MM-DD.tsv，保留 30 天。
+// 局限：接口给的是全量快照而非事件，存活不足一个轮询间隔的连接、以及连接关闭前最后不到一个间隔的字节会漏计。
+
+'use strict';
+
+import * as fs from 'fs';
+import { cursor } from 'uci';
+import { DATA_DIR, CUR_FILE, KEEP_DAYS, INNER, hour_of, host_names, query } from 'mihomo_traffic';
+
+const POLL_MS = 1000;
+
+function append_hour(hour, agg) {
+	fs.mkdir(DATA_DIR);
+	let f = fs.open(sprintf('%s/%s.tsv', DATA_DIR, substr(hour, 0, 10)), 'a');
+	for (let k, v in agg)
+		f.write(sprintf('%s\t%s\t%d\t%d\n', hour, k, v[0], v[1]));
+	f.close();
+}
+
+function prune() {
+	let cutoff = time() - KEEP_DAYS * 86400;
+	for (let name in fs.lsdir(DATA_DIR) ?? []) {
+		let m = match(name, /^(\d{4})-(\d{2})-(\d{2})\.(tsv|day)$/);
+		if (m && timelocal({ year: +m[1], mon: +m[2], mday: +m[3], hour: 0, min: 0, sec: 0 }) < cutoff)
+			fs.unlink(`${DATA_DIR}/${name}`);
+	}
+}
+
+function fetch_connections(hdr, port) {
+	let p = fs.popen(`curl -s -m 5 -H @${hdr} http://127.0.0.1:${port}/connections`, 'r');
+	if (!p)
+		return null;
+	let body = p.read('all');
+	p.close();
+	return length(body) ? json(body) : null;
+}
+
+function run() {
+	let ctx = cursor();
+	let secret = ctx.get('openclash', 'config', 'dashboard_password') ?? '';
+	let port = ctx.get('openclash', 'config', 'cn_port') ?? '9090';
+
+	let hour = hour_of(time());
+	let agg = {};
+	let cur = json(fs.readfile(CUR_FILE) ?? 'null');
+	if (cur?.hour == hour)
+		agg = cur.agg;
+	else if (cur?.hour) {
+		append_hour(cur.hour, cur.agg);
+		// 归档后立刻覆盖快照，否则 stats 会把这一小时从磁盘和快照各算一次
+		fs.writefile(CUR_FILE, sprintf('%J', { hour, agg }));
+	}
+
+	// 令牌写进只有 root 可读的头文件，避免出现在 ps 的命令行里
+	let hdr = '/var/run/mihomo-traffic.hdr';
+	fs.writefile(hdr, `Authorization: Bearer ${secret}\n`);
+	fs.chmod(hdr, 0600);
+
+	// 第一次轮询只记基线：已有连接的累计字节在重启前已经算过，直接计入会重复
+	let last = null;
+	let last_save = time();
+	prune();
+
+	while (true) {
+		sleep(POLL_MS);
+		let snap;
+		try { snap = fetch_connections(hdr, port); } catch (e) { snap = null; }
+		if (!snap)
+			continue;
+		let now = time();
+
+		let h = hour_of(now);
+		if (h != hour) {
+			append_hour(hour, agg);
+			if (substr(h, 0, 10) != substr(hour, 0, 10))
+				prune();
+			hour = h;
+			agg = {};
+			fs.writefile(CUR_FILE, sprintf('%J', { hour, agg }));
+		}
+
+		let seen = {};
+		for (let c in snap?.connections ?? []) {
+			let m = c.metadata;
+			let key = join('\t', [
+				// Inner 是 mihomo 自己发起的连接：链式代理里到落地的承载连接、DoH 等。
+				// 承载连接与设备连接是同一份流量，汇总合计时剔除，避免重复计算
+				m.type == 'Inner' ? INNER : (m.sourceIP || m.inboundName || '-'),
+				c.chains?.[0] ?? '-',
+				m.host || m.sniffHost || m.destinationIP || '-'
+			]);
+			let p = last ? (last[c.id] ?? [0, 0]) : [c.upload, c.download];
+			let du = c.upload - p[0], dd = c.download - p[1];
+			if (du > 0 || dd > 0) {
+				let a = agg[key] ??= [0, 0];
+				a[0] += du > 0 ? du : 0;
+				a[1] += dd > 0 ? dd : 0;
+			}
+			seen[c.id] = [c.upload, c.download];
+		}
+		last = seen;
+
+		if (now - last_save >= 60) {
+			fs.writefile(CUR_FILE, sprintf('%J', { hour, agg }));
+			last_save = now;
+		}
+	}
+}
+
+function fmt(n) {
+	if (n >= 1e9) return sprintf('%.2fG', n / 1e9);
+	if (n >= 1e6) return sprintf('%.1fM', n / 1e6);
+	return sprintf('%.0fK', n / 1e3);
+}
+
+function stats(hours, dims) {
+	let r = query(hours, split(dims ?? 'src', ','), null, 40);
+	let names = host_names();
+	printf('最近 %d 小时（自 %s 时起，含当前小时）  设备合计 上传 %s  下载 %s（不含 %s 行）\n', r.hours, r.since, fmt(r.up), fmt(r.down), INNER);
+	printf('%9s %9s %9s  %s\n', '合计', '上传', '下载', join(' / ', r.dims));
+	for (let row in r.rows) {
+		let key = join('  ', map(r.dims, (d) => (d == 'src' && names[row.src]) ? `${row.src}(${names[row.src]})` : row[d]));
+		printf('%9s %9s %9s  %s\n', fmt(row.up + row.down), fmt(row.up), fmt(row.down), key);
+	}
+}
+
+if (ARGV[0] == 'run')
+	run();
+else if (ARGV[0] == 'stats')
+	stats(ARGV[1], ARGV[2]);
+else
+	print('usage: mihomo-traffic run | stats [小时数=24] [src|node|host|src,host|src,node]\n');

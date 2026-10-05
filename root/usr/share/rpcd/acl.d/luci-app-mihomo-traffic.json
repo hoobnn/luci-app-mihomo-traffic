@@ -1,0 +1,10 @@
+{
+	"luci-app-mihomo-traffic": {
+		"description": "Grant read access to mihomo traffic statistics",
+		"read": {
+			"ubus": {
+				"luci.mihomo-traffic": [ "stats", "status", "controller" ]
+			}
+		}
+	}
+}

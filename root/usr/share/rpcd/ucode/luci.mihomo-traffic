@@ -1,0 +1,54 @@
+// luci.mihomo-traffic：给 LuCI 页面提供只读查询，数据与 mihomo-traffic stats 同源。
+
+'use strict';
+
+import * as fs from 'fs';
+import { connect } from 'ubus';
+import { cursor } from 'uci';
+import { DATA_DIR, CUR_FILE, KEEP_DAYS, INNER, host_names, query } from 'mihomo_traffic';
+
+const methods = {
+	stats: {
+		args: { hours: 24, dims: 'src', where: {}, limit: 200 },
+		call: function(req) {
+			let a = req.args;
+			let dims = type(a.dims) == 'array' ? a.dims : split(a.dims ?? 'src', ',');
+			let r = query(a.hours, dims, a.where, +a.limit || 200);
+			r.names = host_names();
+			r.inner = INNER;
+			return r;
+		}
+	},
+
+	// 实时面板由浏览器直连 mihomo 的 WebSocket，这里只交出端口和密钥；ACL 限定为已登录的 LuCI 管理员
+	controller: {
+		call: function() {
+			let ctx = cursor();
+			return {
+				port: +(ctx.get('openclash', 'config', 'cn_port') ?? 9090),
+				secret: ctx.get('openclash', 'config', 'dashboard_password') ?? ''
+			};
+		}
+	},
+
+	status: {
+		call: function() {
+			let svc = connect()?.call('service', 'list', { name: 'mihomo-traffic' });
+			let inst = svc?.['mihomo-traffic']?.instances?.instance1;
+			let days = filter(fs.lsdir(DATA_DIR) ?? [], (n) => match(n, /\.tsv$/));
+			let size = 0;
+			for (let n in days)
+				size += fs.stat(`${DATA_DIR}/${n}`)?.size ?? 0;
+			return {
+				running: !!inst?.running,
+				pid: inst?.pid,
+				snapshot_age: fs.stat(CUR_FILE) ? time() - fs.stat(CUR_FILE).mtime : null,
+				days: length(days),
+				keep_days: KEEP_DAYS,
+				size
+			};
+		}
+	}
+};
+
+return { 'luci.mihomo-traffic': methods };
