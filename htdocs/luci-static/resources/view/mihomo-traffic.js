@@ -41,6 +41,17 @@ const OTHER_SRC = '其他设备';
 const CSS = `
 .mt-root { min-width:0; max-width:100% }
 .mt-root .cbi-section { padding:1em 1.2em }
+.mt-tabbar { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:.4em 1em;
+	border-bottom:1px solid var(--mt-border); margin:-.2em 0 1em }
+.mt-tabs { display:flex; gap:1.6em }
+.mt-tab { appearance:none; background:none; border:0; margin:0 0 -1px; padding:.5em .1em .6em; font:inherit; font-size:105%;
+	color:inherit; opacity:.6; cursor:pointer; border-bottom:2px solid transparent; display:inline-flex; align-items:center; gap:.45em }
+.mt-tab:hover { opacity:.9 }
+.mt-tab.mt-on { opacity:1; font-weight:600; color:var(--mt-accent); border-bottom-color:var(--mt-accent) }
+.mt-dot { width:7px; height:7px; border-radius:50%; background:transparent }
+.mt-dot.mt-live { background:#2ea043; box-shadow:0 0 0 0 rgba(46,160,67,.6); animation:mt-pulse 1.6s infinite }
+@keyframes mt-pulse { 70% { box-shadow:0 0 0 6px rgba(46,160,67,0) } 100% { box-shadow:0 0 0 0 rgba(46,160,67,0) } }
+.mt-tabbar .mt-status { font-size:85%; padding-bottom:.7em }
 .mt-toolbar { display:flex; flex-wrap:wrap; gap:.6em 1.2em; align-items:center; margin:0 0 .8em }
 .mt-toolbar label { display:flex; gap:.5em; align-items:center; white-space:nowrap }
 .mt-seg { display:inline-flex; flex-wrap:wrap; border:1px solid var(--mt-border); border-radius:6px; overflow:hidden }
@@ -203,9 +214,21 @@ return view.extend({
 		}
 		if (!c) {
 			c = this.charts[id] = window.echarts.init(node, null, { renderer: 'canvas' });
-			new ResizeObserver(() => c.resize()).observe(node);
+			// 切到另一个页签时容器宽度为 0，这时不重排，切回来再按实际尺寸重排
+			new ResizeObserver(() => node.offsetWidth && c.resize()).observe(node);
 		}
 		return c;
+	},
+
+	// 后台刷新只换数据，序列结构（类型、名称、堆叠）变了才整体重画，省掉每次重建图形和过渡动画
+	paint(c, option) {
+		// 合并模式删不掉组件，dataZoom 有无变化也要整体重画
+		const sig = JSON.stringify([ (option.series || []).map((s) => [ s.type, s.name, s.stack ]), (option.dataZoom || []).length ]);
+		const full = c.mtSig !== sig;
+		c.mtSig = sig;
+		if (!full)
+			option.animation = false;
+		c.setOption(option, { notMerge: full, lazyUpdate: true });
 	},
 
 	displayName(d, v) {
@@ -218,6 +241,12 @@ return view.extend({
 
 	// silent：后台轮询时不变暗，免得每分钟闪一下
 	refresh(silent) {
+		// 后台轮询：页面不可见或停在实时页签时什么都不做，切回来时再刷新
+		if (silent === true && (document.hidden || this.historyNode.style.display == 'none')) {
+			this.stale = true;
+			return Promise.resolve();
+		}
+		this.stale = false;
 		if (silent !== true)
 			this.historyNode.classList.add('mt-loading');
 		return Promise.all([ callStatus(), this.fetch() ]).then(([ status, stats ]) => {
@@ -249,7 +278,7 @@ return view.extend({
 			? E('span', { style: 'color:#2ea043' }, '● 采集运行中')
 			: E('span', { style: 'color:#d1242f' }, '● 采集未运行');
 		const age = st.snapshot_age != null ? '快照 %d 秒前'.format(st.snapshot_age) : '暂无快照';
-		return E('div', { class: 'mt-muted', style: 'margin:.3em 0 .8em' },
+		return E('span', { class: 'mt-muted' },
 			[ run, ' · %s · 已存 %d 天 / %s（保留 %d 天）'.format(age, st.days, fmt(st.size), st.keep_days) ]);
 	},
 
@@ -335,7 +364,7 @@ return view.extend({
 				n == '其他' ? (t.dark ? '#6b7280' : '#b0b7c3') : null));
 		}
 
-		c.setOption(Object.assign(this.baseOption(), {
+		this.paint(c, Object.assign(this.baseOption(), {
 			grid: { left: 8, right: 16, top: 36, bottom: x.length > 72 ? 48 : 8, containLabel: true },
 			legend: { type: 'scroll', top: 0, textStyle: { color: t.text }, pageTextStyle: { color: t.muted } },
 			tooltip: Object.assign(this.baseOption().tooltip, {
@@ -355,7 +384,7 @@ return view.extend({
 			}),
 			dataZoom: x.length > 72 ? [ { type: 'inside' }, { type: 'slider', height: 18, bottom: 6, borderColor: t.line, textStyle: { color: t.muted } } ] : [],
 			series
-		}), true);
+		}));
 	},
 
 	drawNodes(st) {
@@ -366,7 +395,7 @@ return view.extend({
 		const data = st.top.node.map(([ n, u, d ]) => ({ name: n, value: u + d, up: u, down: d }));
 		c.off('click');
 		c.on('click', (p) => this.drill('node', p.name));
-		c.setOption(Object.assign(this.baseOption(), {
+		this.paint(c, Object.assign(this.baseOption(), {
 			tooltip: Object.assign(this.baseOption().tooltip, {
 				trigger: 'item',
 				formatter: (p) => '%s <b>%s</b><br>合计 %s（%.1f%%）<br>上传 %s　下载 %s'.format(
@@ -383,7 +412,7 @@ return view.extend({
 				emphasis: { scaleSize: 6 },
 				data
 			} ]
-		}), true);
+		}));
 	},
 
 	drawFlow(st) {
@@ -417,7 +446,7 @@ return view.extend({
 			if (p.dataType == 'node' && p.name != 's:' + OTHER_SRC)
 				this.drill(p.name.startsWith('s:') ? 'src' : 'node', p.name.slice(2));
 		});
-		c.setOption(Object.assign(this.baseOption(), {
+		this.paint(c, Object.assign(this.baseOption(), {
 			tooltip: Object.assign(this.baseOption().tooltip, {
 				trigger: 'item',
 				formatter: (p) => p.dataType == 'edge'
@@ -433,7 +462,7 @@ return view.extend({
 				data,
 				links: links.map(([ s, n, v ]) => ({ source: 's:' + s, target: 'n:' + n, value: v }))
 			} ]
-		}), true);
+		}));
 	},
 
 	drawHosts(st) {
@@ -444,7 +473,7 @@ return view.extend({
 		const top = st.top.host.slice().reverse();
 		c.off('click');
 		c.on('click', (p) => this.drill('host', top[p.dataIndex][0]));
-		c.setOption(Object.assign(this.baseOption(), {
+		this.paint(c, Object.assign(this.baseOption(), {
 			grid: { left: 8, right: 24, top: 28, bottom: 4, containLabel: true },
 			legend: { top: 0, right: 0, textStyle: { color: t.text } },
 			tooltip: Object.assign(this.baseOption().tooltip, {
@@ -460,7 +489,7 @@ return view.extend({
 				{ name: '上传', type: 'bar', stack: 't', data: top.map((h) => h[1]), itemStyle: { color: COLOR_UP }, barMaxWidth: 14 },
 				{ name: '下载', type: 'bar', stack: 't', data: top.map((h) => h[2]), itemStyle: { color: COLOR_DOWN, borderRadius: [ 0, 3, 3, 0 ] }, barMaxWidth: 14 }
 			]
-		}), true);
+		}));
 	},
 
 	drawHistory(st) {
@@ -558,6 +587,7 @@ return view.extend({
 		for (const ws of Object.values(this.ws || {}))
 			ws.close();
 		this.ws = null;
+		this.liveDotNode?.classList.remove('mt-live');
 		this.prevConns = null;
 	},
 
@@ -575,6 +605,7 @@ return view.extend({
 			L_.t.shift(); L_.up.shift(); L_.down.shift();
 		}
 		this.liveNow = m;
+		this.liveDotNode?.classList.add('mt-live');
 		this.drawLive();
 	},
 
@@ -664,7 +695,7 @@ return view.extend({
 		const t = this.theme;
 		const area = (color) => ({ color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1,
 			[ { offset: 0, color: color + (t.dark ? '88' : '66') }, { offset: 1, color: color + '05' } ]) });
-		c.setOption(Object.assign(this.baseOption(), {
+		this.paint(c, Object.assign(this.baseOption(), {
 			animation: false,
 			grid: { left: 8, right: 16, top: 30, bottom: 8, containLabel: true },
 			legend: { top: 0, textStyle: { color: t.text } },
@@ -679,7 +710,7 @@ return view.extend({
 				{ name: '上传', type: 'line', data: this.live.up, smooth: true, showSymbol: false, itemStyle: { color: COLOR_UP }, lineStyle: { width: 1.5 }, areaStyle: area(COLOR_UP) },
 				{ name: '下载', type: 'line', data: this.live.down, smooth: true, showSymbol: false, itemStyle: { color: COLOR_DOWN }, lineStyle: { width: 1.5 }, areaStyle: area(COLOR_DOWN) }
 			]
-		}), true);
+		}));
 	},
 
 	/* ---------- 页面 ---------- */
@@ -693,7 +724,7 @@ return view.extend({
 		this.root = E('div', { class: 'cbi-map mt-root' });
 		this.applyTheme();
 
-		this.statusNode = E('div', {}, this.renderStatus(status));
+		this.statusNode = E('div', { class: 'mt-status' }, this.renderStatus(status));
 		this.toolbarNode = E('div', { class: 'mt-toolbar' }, this.renderToolbar());
 		this.chipsNode = E('div', { class: 'mt-chips' }, this.renderChips());
 		this.cardsNode = E('div', { class: 'mt-cards' });
@@ -736,28 +767,49 @@ return view.extend({
 			])
 		]);
 
-		// 页签内容包进 cbi-section，背景、圆角和内边距交给主题
-		const historyPane = E('div', { 'data-tab': 'history', 'data-tab-title': '历史统计' }, E('div', { class: 'cbi-section' }, this.historyNode));
-		const livePane = E('div', { 'data-tab': 'live', 'data-tab-title': '实时' }, E('div', { class: 'cbi-section' }, liveNode));
-		const tabs = E('div', {}, [ historyPane, livePane ]);
+		// 不用 LuCI 的 cbi-tabmenu：它在 Argon 下是悬在面板外的灰块。页签、状态和内容放进同一个 cbi-section
+		const panes = { history: this.historyNode, live: liveNode };
+		const tabButtons = {};
+		let active = 'history';
+		try { active = sessionStorage.getItem('mihomo-traffic.tab') == 'live' ? 'live' : 'history'; } catch (e) {}
+
+		// 实时面板只在可见时保持 WebSocket 连接
+		// 历史统计在后台期间跳过的轮询，回到前台时补一次
+		const sync = () => {
+			if (active == 'live' && !document.hidden)
+				this.liveStart();
+			else
+				this.liveStop();
+			if (active == 'history' && !document.hidden && this.stale)
+				this.refresh(true);
+		};
+		const select = (name) => {
+			active = name;
+			try { sessionStorage.setItem('mihomo-traffic.tab', name); } catch (e) {}
+			for (const k in panes) {
+				panes[k].style.display = k == name ? '' : 'none';
+				tabButtons[k].classList.toggle('mt-on', k == name);
+			}
+			sync();
+		};
+		this.liveDotNode = E('span', { class: 'mt-dot' });
+		tabButtons.history = E('button', { class: 'mt-tab', click: () => select('history') }, '历史统计');
+		tabButtons.live = E('button', { class: 'mt-tab', click: () => select('live') }, [ '实时', this.liveDotNode ]);
 
 		dom.append(this.root, [
 			E('style', {}, CSS),
 			E('h2', {}, 'Mihomo 流量'),
 			E('div', { class: 'cbi-map-descr' }, '按来源设备、出口节点和目标统计经过 OpenClash（mihomo）的连接流量，直连也包含在内；(内部) 是 mihomo 自身的连接，与设备流量重复，不计入合计。'),
-			this.statusNode,
-			tabs
+			E('div', { class: 'cbi-section' }, [
+				E('div', { class: 'mt-tabbar' }, [ E('div', { class: 'mt-tabs' }, [ tabButtons.history, tabButtons.live ]), this.statusNode ]),
+				this.historyNode,
+				liveNode
+			])
 		]);
 
-		// LuCI 在被选中的页签面板上派发 cbi-tab-active（不冒泡）；实时面板只在可见时保持连接
-		const liveVisible = () => livePane.getAttribute('data-tab-active') == 'true' && !document.hidden;
-		const sync = () => setTimeout(() => liveVisible() ? this.liveStart() : this.liveStop(), 0);
-		historyPane.addEventListener('cbi-tab-active', sync);
-		livePane.addEventListener('cbi-tab-active', sync);
 		document.addEventListener('visibilitychange', sync);
 		window.addEventListener('beforeunload', () => this.liveStop());
-		ui.tabs.initTabGroup(tabs.childNodes);
-		sync();
+		select(active);
 
 		this.watchTheme();
 		// 不用 requestAnimationFrame：后台标签页里它不会触发，首屏就一直空着

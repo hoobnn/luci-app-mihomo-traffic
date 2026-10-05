@@ -5,7 +5,18 @@
 import * as fs from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
-import { DATA_DIR, CUR_FILE, KEEP_DAYS, INNER, host_names, query } from 'mihomo_traffic';
+import { DATA_DIR, CUR_FILE, KEEP_DAYS, INNER, hour_of, host_names, query } from 'mihomo_traffic';
+
+// 查询结果缓存：数据只在快照（每分钟）或归档（整点）时变化，期间同样的查询直接复用。
+// 戳记带上当前小时，查询窗口随整点滑动时自然失效
+const CACHE_MAX = 16;
+let cache = {}, cache_size = 0;
+
+function data_stamp() {
+	let now = time();
+	let today = substr(hour_of(now), 0, 10);
+	return sprintf('%s|%d|%d', hour_of(now), fs.stat(CUR_FILE)?.mtime ?? 0, fs.stat(`${DATA_DIR}/${today}.tsv`)?.mtime ?? 0);
+}
 
 const methods = {
 	stats: {
@@ -13,9 +24,19 @@ const methods = {
 		call: function(req) {
 			let a = req.args;
 			let dims = type(a.dims) == 'array' ? a.dims : split(a.dims ?? 'src', ',');
-			let r = query(a.hours, dims, a.where, +a.limit || 200);
+			let key = sprintf('%J', [ a.hours, dims, a.where, a.limit ]);
+			let stamp = data_stamp();
+			let r = cache[key]?.stamp == stamp ? cache[key].result : null;
+			if (!r) {
+				r = query(a.hours, dims, a.where, +a.limit || 200);
+				r.inner = INNER;
+				if (++cache_size > CACHE_MAX) {
+					cache = {};
+					cache_size = 1;
+				}
+				cache[key] = { stamp, result: r };
+			}
 			r.names = host_names();
-			r.inner = INNER;
 			return r;
 		}
 	},

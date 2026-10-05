@@ -9,14 +9,27 @@
 
 import * as fs from 'fs';
 import { cursor } from 'uci';
-import { DATA_DIR, CUR_FILE, KEEP_DAYS, INNER, hour_of, host_names, query } from 'mihomo_traffic';
+import { DATA_DIR, CUR_FILE, KEEP_DAYS, INNER, SMALL, hour_of, host_names, query } from 'mihomo_traffic';
 
 const POLL_MS = 1000;
+// 归档时，一小时内不足这个字节数的目标并入同设备同节点的 SMALL 行：
+// 这类长尾约占一半行数，几乎不占流量，合并后文件和查询耗时都减半
+const SMALL_HOUR_BYTES = 16384;
 
 function append_hour(hour, agg) {
+	let out = {};
+	for (let k, v in agg) {
+		if (v[0] + v[1] < SMALL_HOUR_BYTES) {
+			let p = split(k, '\t');
+			k = `${p[0]}\t${p[1]}\t${SMALL}`;
+		}
+		let o = out[k] ??= [0, 0];
+		o[0] += v[0]; o[1] += v[1];
+	}
+
 	fs.mkdir(DATA_DIR);
 	let f = fs.open(sprintf('%s/%s.tsv', DATA_DIR, substr(hour, 0, 10)), 'a');
-	for (let k, v in agg)
+	for (let k, v in out)
 		f.write(sprintf('%s\t%s\t%d\t%d\n', hour, k, v[0], v[1]));
 	f.close();
 }
