@@ -10,6 +10,21 @@ OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash �
 
 [English](#english)
 
+![历史统计（Argon 浅色）](docs/screenshots/history-light.png)
+
+<details>
+<summary>更多截图：深色模式、实时面板、Bootstrap 主题</summary>
+
+| 历史统计（Argon 深色） | 实时面板（Argon 深色） |
+|---|---|
+| ![历史统计 深色](docs/screenshots/history-dark.png) | ![实时面板](docs/screenshots/live-dark.png) |
+
+![Bootstrap 主题](docs/screenshots/bootstrap-light.png)
+
+</details>
+
+截图中的设备、节点和流量均为演示数据，由 `tests/demo-data.uc` 生成。
+
 ## 功能
 
 - **按设备 / 出口节点 / 目标统计**：每台设备的上传下载、每个代理节点（含 DIRECT）承担了多少流量、流量最大的域名，可任意组合维度，点击即可下钻过滤
@@ -114,6 +129,13 @@ CI 使用 [openwrt/gh-action-sdk](https://github.com/openwrt/gh-action-sdk) 分�
 scripts/deploy.sh root@192.168.1.1   # 把文件直接拷到路由器，重载 rpcd；采集逻辑有变化时才重启采集进程
 sh tests/smoke.sh                    # 在路由器或 OpenWrt rootfs 容器里跑冒烟测试
 scripts/build-echarts.sh             # 重新按需打包 ECharts（需要 Node.js）
+```
+
+演示环境（截图用，不要在真实路由器上跑，会覆盖已有数据）：
+
+```sh
+ucode -L /usr/share/ucode tests/demo-data.uc               # 在测试路由器或容器里生成 8 天的虚构数据
+uv run --with websockets tests/fake-mihomo.py 19090       # 假的 mihomo WebSocket，给实时面板喂数据
 ```
 
 ## 许可

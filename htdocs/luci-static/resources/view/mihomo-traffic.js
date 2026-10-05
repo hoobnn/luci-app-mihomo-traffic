@@ -46,8 +46,11 @@ const CSS = `
 .mt-tabs { display:flex; gap:1.6em }
 .mt-tab { appearance:none; background:none; border:0; margin:0 0 -1px; padding:.5em .1em .6em; font:inherit; font-size:105%;
 	color:inherit; opacity:.6; cursor:pointer; border-bottom:2px solid transparent; display:inline-flex; align-items:center; gap:.45em }
+/* Argon 深色给所有 button 加了边框和底色，这里提高优先级清掉 */
+.mt-root .mt-tabs .mt-tab { background:none !important; border:0 !important; border-bottom:2px solid transparent !important;
+	border-radius:0 !important; box-shadow:none !important; min-height:0 }
 .mt-tab:hover { opacity:.9 }
-.mt-tab.mt-on { opacity:1; font-weight:600; color:var(--mt-accent); border-bottom-color:var(--mt-accent) }
+.mt-root .mt-tabs .mt-tab.mt-on { opacity:1; font-weight:600; color:var(--mt-accent); border-bottom-color:var(--mt-accent) !important }
 .mt-dot { width:7px; height:7px; border-radius:50%; background:transparent }
 .mt-dot.mt-live { background:#2ea043; box-shadow:0 0 0 0 rgba(46,160,67,.6); animation:mt-pulse 1.6s infinite }
 @keyframes mt-pulse { 70% { box-shadow:0 0 0 6px rgba(46,160,67,0) } 100% { box-shadow:0 0 0 0 rgba(46,160,67,0) } }
@@ -71,13 +74,16 @@ const CSS = `
 .mt-card .mt-v { font-size:150%; font-weight:600; margin-top:.2em; white-space:nowrap }
 .mt-card .mt-s { font-size:80%; opacity:.6; margin-top:.2em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .mt-panel { padding:.6em .8em; border-radius:8px; border:1px solid var(--mt-border); margin-bottom:1em; min-width:0 }
-.mt-panel h4 { margin:.2em 0 .4em; font-size:100%; font-weight:600 }
+.mt-panel h4 { margin:.2em 0 .4em; font-size:100%; font-weight:600; color:inherit }
 .mt-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:0 1em }
 /* ECharts 的 canvas 是固定像素宽，contain 让它不参与外层宽度计算，否则窗口变窄时整页被撑住缩不回来 */
 .mt-chart { width:100%; height:280px; contain:inline-size; overflow:hidden }
 .mt-chart.mt-tall { height:320px }
 .mt-table-wrap { overflow-x:auto }
-.mt-table-wrap .td { word-break:break-all }
+/* 只让长域名在必要时断行，设备名、数字不拆 */
+.mt-table-wrap .td { overflow-wrap:anywhere }
+.mt-table-wrap .td.mt-host { text-align:left; min-width:12em }
+.mt-table-wrap .td.mt-nowrap { white-space:nowrap !important; overflow-wrap:normal }
 .mt-bar { display:flex; align-items:center; gap:.4em }
 .mt-bar > div { flex:1; height:6px; border-radius:3px; background:var(--mt-soft-2); overflow:hidden }
 .mt-bar > div > div { height:100% }
@@ -173,8 +179,13 @@ return view.extend({
 				this.drawLive();
 			}
 		};
-		window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(rerender, 50));
-		new MutationObserver(() => setTimeout(rerender, 50))
+		// 主题的文字颜色带过渡动画，切换后立刻读到的是中间色；过渡结束后再补读一次
+		const later = () => {
+			setTimeout(rerender, 100);
+			setTimeout(rerender, 800);
+		};
+		window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', later);
+		new MutationObserver(later)
 			.observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-darkmode', 'class' ] });
 	},
 
@@ -222,8 +233,8 @@ return view.extend({
 
 	// 后台刷新只换数据，序列结构（类型、名称、堆叠）变了才整体重画，省掉每次重建图形和过渡动画
 	paint(c, option) {
-		// 合并模式删不掉组件，dataZoom 有无变化也要整体重画
-		const sig = JSON.stringify([ (option.series || []).map((s) => [ s.type, s.name, s.stack ]), (option.dataZoom || []).length ]);
+		// 合并模式删不掉组件，dataZoom 有无变化也要整体重画；合并也套不全新配色，明暗切换时同样整体重画
+		const sig = JSON.stringify([ (option.series || []).map((s) => [ s.type, s.name, s.stack ]), (option.dataZoom || []).length, this.theme.dark ]);
 		const full = c.mtSig !== sig;
 		c.mtSig = sig;
 		if (!full)
@@ -632,7 +643,8 @@ return view.extend({
 				s.up += ru; s.down += rd; s.n++;
 			}
 			conns.push({ src, inner, host: md.host || md.sniffHost || md.destinationIP, port: md.destinationPort,
-				node: (c.chains || [])[0], rule: c.rule, up: ru, down: rd, total: c.upload + c.download });
+				node: (c.chains || [])[0], rule: c.rulePayload ? '%s(%s)'.format(c.rule, c.rulePayload) : c.rule,
+				up: ru, down: rd, total: c.upload + c.download });
 		}
 		this.prevConns = { at: now, map: next };
 		this.liveConnCount = (m.connections || []).length;
@@ -661,13 +673,13 @@ return view.extend({
 		const top = conns.filter((c) => c.up + c.down > 0).sort((a, b) => (b.up + b.down) - (a.up + a.down)).slice(0, 20);
 		dom.content(this.liveConnNode, E('div', { class: 'mt-table-wrap' }, E('table', { class: 'table' }, [
 			E('tr', { class: 'tr table-titles' }, [
-				E('th', { class: 'th' }, '目标'), E('th', { class: 'th' }, '设备'), E('th', { class: 'th' }, '出口 / 规则'),
+				E('th', { class: 'th' }, '目标 / 设备'), E('th', { class: 'th' }, '出口 / 规则'),
 				E('th', { class: 'th', style: num }, '上传'), E('th', { class: 'th', style: num }, '下载'), E('th', { class: 'th', style: num }, '累计')
 			]),
 			...(top.length ? top.map((c) => E('tr', { class: 'tr' + (c.inner ? ' mt-muted' : '') }, [
-				E('td', { class: 'td' }, '%s:%s'.format(c.host, c.port)),
-				E('td', { class: 'td' }, c.inner ? c.src : (names[c.src] || c.src)),
-				E('td', { class: 'td' }, [ c.node || '-', E('br'), E('small', { class: 'mt-muted' }, c.rule || '') ]),
+				E('td', { class: 'td mt-host' }, [ '%s:%s'.format(c.host, c.port), E('br'),
+					E('small', { class: 'mt-muted' }, c.inner ? c.src : (names[c.src] || c.src)) ]),
+				E('td', { class: 'td mt-nowrap' }, [ c.node || '-', E('br'), E('small', { class: 'mt-muted' }, c.rule || '') ]),
 				E('td', { class: 'td', style: num + ';color:' + COLOR_UP }, rate(c.up)),
 				E('td', { class: 'td', style: num + ';color:' + COLOR_DOWN }, rate(c.down)),
 				E('td', { class: 'td', style: num }, fmt(c.total))
