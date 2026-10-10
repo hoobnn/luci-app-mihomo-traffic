@@ -138,9 +138,9 @@ ucode -L /usr/share/ucode tests/demo-data.uc               # 在测试路由器�
 uv run --with websockets tests/fake-mihomo.py 19090       # 假的 mihomo WebSocket，给实时面板喂数据
 ```
 
-## 许可
+## 许可证
 
-[Apache-2.0](LICENSE)。内置的 [Apache ECharts](https://echarts.apache.org/) 同为 Apache-2.0，许可证见 `htdocs/luci-static/resources/mihomo-traffic/ECHARTS-LICENSE`。
+[Apache-2.0](LICENSE) © 2026 hoobnn。内置的 [Apache ECharts](https://echarts.apache.org/) 同为 Apache-2.0，许可证见 `htdocs/luci-static/resources/mihomo-traffic/ECHARTS-LICENSE`。
 
 ---
 
