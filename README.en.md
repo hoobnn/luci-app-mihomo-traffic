@@ -1,6 +1,8 @@
 <div align="center">
 
-# luci-app-mihomo-traffic: traffic statistics for OpenClash
+# luci-app-mihomo-traffic
+
+Traffic statistics for OpenClash, broken down by device, outbound node and destination domain.
 
 [![Release](https://img.shields.io/github/v/release/hoobnn/luci-app-mihomo-traffic?style=flat-square)](https://github.com/hoobnn/luci-app-mihomo-traffic/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/hoobnn/luci-app-mihomo-traffic/build.yml?branch=main&style=flat-square&label=Build)](https://github.com/hoobnn/luci-app-mihomo-traffic/actions/workflows/build.yml)

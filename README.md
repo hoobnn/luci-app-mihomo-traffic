@@ -1,6 +1,8 @@
 <div align="center">
 
-# luci-app-mihomo-traffic：OpenClash 流量统计插件
+# luci-app-mihomo-traffic
+
+OpenClash 流量统计插件，按设备、出口节点、目标域名统计流量。
 
 [![Release](https://img.shields.io/github/v/release/hoobnn/luci-app-mihomo-traffic?style=flat-square)](https://github.com/hoobnn/luci-app-mihomo-traffic/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/hoobnn/luci-app-mihomo-traffic/build.yml?branch=main&style=flat-square&label=Build)](https://github.com/hoobnn/luci-app-mihomo-traffic/actions/workflows/build.yml)
