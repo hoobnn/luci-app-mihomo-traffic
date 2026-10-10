@@ -1,14 +1,15 @@
-# luci-app-mihomo-traffic
+# luci-app-mihomo-traffic：OpenClash 流量统计插件
 
-[![Build](https://github.com/hoobnn/luci-app-mihomo-traffic/actions/workflows/build.yml/badge.svg)](https://github.com/hoobnn/luci-app-mihomo-traffic/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/hoobnn/luci-app-mihomo-traffic)](https://github.com/hoobnn/luci-app-mihomo-traffic/releases)
-[![License](https://img.shields.io/github/license/hoobnn/luci-app-mihomo-traffic)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/hoobnn/luci-app-mihomo-traffic?style=flat-square)](https://github.com/hoobnn/luci-app-mihomo-traffic/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/hoobnn/luci-app-mihomo-traffic/build.yml?branch=main&style=flat-square&label=Build)](https://github.com/hoobnn/luci-app-mihomo-traffic/actions/workflows/build.yml)
+[![OpenWrt](https://img.shields.io/badge/OpenWrt-24.10%2B-00B5E2?style=flat-square&logo=openwrt&logoColor=white)](https://openwrt.org/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash 内核）的连接数据，**按设备、出口节点、目标域名统计流量**，带历史趋势和实时速率面板。
+**简体中文** · [English](README.en.md)
+
+OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash 内核）的连接数据，按设备、出口节点、目标域名统计流量，带历史趋势和实时速率面板。
 
 开启了全锥形 NAT（`kmod-nft-fullcone`）的路由器上，nlbwmon 收不到 conntrack 事件、统计一直为空；本插件不依赖 conntrack，直接读 mihomo 的连接表，可以替代 nlbwmon 做「哪台设备用了多少流量、走了哪个节点、访问了哪些网站」的统计。
-
-[English](#english)
 
 ![历史统计（Argon 浅色）](docs/screenshots/history-light.png)
 
@@ -23,17 +24,17 @@ OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash �
 
 </details>
 
-截图中的设备、节点和流量均为演示数据，由 `tests/demo-data.uc` 生成。
+<sub>截图中的设备、节点和流量均为演示数据，由 `tests/demo-data.uc` 生成。</sub>
 
 ## 功能
 
-- **按设备 / 出口节点 / 目标统计**：每台设备的上传下载、每个代理节点（含 DIRECT）承担了多少流量、流量最大的域名，可任意组合维度，点击即可下钻过滤
-- **历史趋势**：按小时（72 小时内）或按天（最长 30 天）查看，可按上传下载、设备或出口节点分组
-- **可视化**：出口节点占比、设备 → 出口节点流向（桑基图）、目标排行，基于本地打包的 Apache ECharts，不依赖外网 CDN
-- **实时面板**：浏览器直连 mihomo WebSocket，每秒刷新总速率曲线，以及各设备实时速率和最活跃的连接
-- **适配主题**：Argon、Bootstrap 等主题的浅色和深色模式自动适配，强调色跟随主题
-- **轻量**：采集进程用 ucode 编写，不装 Python、Node 或数据库；实测占单核约 1.3%，常驻内存约 3 MB
-- **命令行**：`mihomo-traffic stats` 在 SSH 里直接出报表
+- 按设备 / 出口节点 / 目标统计：每台设备的上传下载、每个代理节点（含 DIRECT）承担了多少流量、流量最大的域名，可任意组合维度，点击即可下钻过滤。
+- 历史趋势：按小时（72 小时内）或按天（最长 30 天）查看，可按上传下载、设备或出口节点分组。
+- 可视化：出口节点占比、设备 → 出口节点流向（桑基图）、目标排行，基于本地打包的 Apache ECharts，不依赖外网 CDN。
+- 实时面板：浏览器直连 mihomo WebSocket，每秒刷新总速率曲线，以及各设备实时速率和最活跃的连接。
+- 适配主题：Argon、Bootstrap 等主题的浅色和深色模式自动适配，强调色跟随主题。
+- 轻量：采集进程用 ucode 编写，不装 Python、Node 或数据库；实测占单核约 1.3%，常驻内存约 3 MB。
+- 命令行：`mihomo-traffic stats` 在 SSH 里直接出报表。
 
 ## 与其他方案的区别
 
@@ -46,32 +47,38 @@ OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash �
 
 ## 安装
 
-要求：OpenWrt 或 ImmortalWrt **24.10 及以上**，已安装并运行 **OpenClash**（插件从 OpenClash 的配置读取 mihomo 控制端口和密钥）。
+要求：OpenWrt 或 ImmortalWrt 24.10 及以上，已安装并运行 OpenClash（插件从 OpenClash 的配置读取 mihomo 控制端口和密钥）。
 
-从 [Releases](https://github.com/hoobnn/luci-app-mihomo-traffic/releases) 下载对应格式的安装包。插件与 CPU 架构无关，x86_64、aarch64、mips 等通用。
+从 [Releases](https://github.com/hoobnn/luci-app-mihomo-traffic/releases/latest) 下载对应格式的安装包，传到路由器的 `/tmp`（如 `scp -O luci-app-mihomo-traffic*.apk root@192.168.1.1:/tmp/`）。插件与 CPU 架构无关，x86_64、aarch64、mips 等通用。
 
-**25.12 及以后（apk）**
+### 25.12 及以后（apk）
 
 ```sh
 apk add --allow-untrusted /tmp/luci-app-mihomo-traffic-*.apk
 ```
 
-**24.10（opkg）**
+### 24.10（opkg）
 
 ```sh
 opkg install /tmp/luci-app-mihomo-traffic_*.ipk
 ```
 
-安装后采集服务自动启动，刷新 LuCI 即可在 **状态 → Mihomo 流量** 看到页面。数据从安装时开始累计。
+安装后采集服务自动启动，刷新 LuCI 即可在「状态 › Mihomo 流量」看到页面。数据从安装时开始累计。
 
-卸载：`apk del luci-app-mihomo-traffic` 或 `opkg remove luci-app-mihomo-traffic`。历史数据保留在 `/etc/mihomo-traffic/`，不需要可手动删除。
+### 更新
+
+下载新版本安装包，用同样的命令安装即可覆盖升级。安装后采集进程会自动重启，历史数据保留。
+
+### 卸载
+
+`apk del luci-app-mihomo-traffic` 或 `opkg remove luci-app-mihomo-traffic`。历史数据保留在 `/etc/mihomo-traffic/`，不需要可手动删除。
 
 ## 使用
 
 ### 网页
 
-- **历史统计**：选择时间范围、趋势分组和表格维度；点击图表或表格里的设备、节点、目标会加上过滤条件，点击过滤标签可以移除
-- **实时**：切到这个页签时才连接 mihomo WebSocket，离开即断开。需要浏览器能直接访问路由器的 mihomo 控制端口（OpenClash 默认 9090）；通过 HTTPS 访问 LuCI 时浏览器不允许连接 `ws://`，实时面板不可用
+- 历史统计：选择时间范围、趋势分组和表格维度；点击图表或表格里的设备、节点、目标会加上过滤条件，点击过滤标签可以移除。
+- 实时：切到这个页签时才连接 mihomo WebSocket，离开即断开。需要浏览器能直接访问路由器的 mihomo 控制端口（OpenClash 默认 9090）；通过 HTTPS 访问 LuCI 时浏览器不允许连接 `ws://`，实时面板不可用。
 
 ### 命令行
 
@@ -85,7 +92,7 @@ mihomo-traffic stats 168 node        # 最近 7 天，按出口节点
 
 ## 工作原理
 
-```
+```text
 mihomo /connections ──每秒轮询──▶ mihomo-traffic（procd 托管的 ucode 进程）
                                    │ 按「设备 / 出口节点 / 目标」累计字节增量
                                    ├─ 每分钟快照 ─▶ /tmp/mihomo-traffic.cur
@@ -95,9 +102,9 @@ LuCI 页面 ◀── rpcd（ucode 插件 luci.mihomo-traffic）──┘  查�
      └──── 实时面板直连 mihomo WebSocket（/traffic、/connections、/memory）
 ```
 
-- **存储**：每小时一行一个「设备 + 节点 + 目标」组合，一小时内不足 16 KB 的目标合并为 `(小流量)`；保留 30 天，系统升级（sysupgrade）时自动保留
-- **查询**：72 小时内按小时读原始数据；更长范围按天读日汇总（单日不足 1 MB 的目标合并为 `(小流量)`），30 天查询约 0.5 秒；数据不变时直接返回缓存
-- **精度**：mihomo 接口提供的是连接快照而不是事件，存活不足 1 秒的连接、以及连接关闭前最后不到 1 秒的流量会漏计；直连（DIRECT）流量只有经过 mihomo 时才会被统计（如 TUN / 透明代理模式）
+- 存储：每小时一行一个「设备 + 节点 + 目标」组合，一小时内不足 16 KB 的目标合并为 `(小流量)`；保留 30 天，系统升级（sysupgrade）时自动保留。
+- 查询：72 小时内按小时读原始数据；更长范围按天读日汇总（单日不足 1 MB 的目标合并为 `(小流量)`），30 天查询约 0.5 秒；数据不变时直接返回缓存。
+- 精度：mihomo 接口提供的是连接快照而不是事件，存活不足 1 秒的连接、以及连接关闭前最后不到 1 秒的流量会漏计；直连（DIRECT）流量只有经过 mihomo 时才会被统计（如 TUN / 透明代理模式）。
 
 ## 常见问题
 
@@ -140,23 +147,5 @@ uv run --with websockets tests/fake-mihomo.py 19090       # 假的 mihomo WebSoc
 
 ## 许可证
 
-[Apache-2.0](LICENSE) © 2026 hoobnn。内置的 [Apache ECharts](https://echarts.apache.org/) 同为 Apache-2.0，许可证见 `htdocs/luci-static/resources/mihomo-traffic/ECHARTS-LICENSE`。
+[Apache-2.0](LICENSE) © 2026 hoobnn。可自由使用、修改和分发，需保留版权声明。内置的 [Apache ECharts](https://echarts.apache.org/) 同为 Apache-2.0，许可证见 [`ECHARTS-LICENSE`](htdocs/luci-static/resources/mihomo-traffic/ECHARTS-LICENSE)。
 
----
-
-## English
-
-**luci-app-mihomo-traffic** is a LuCI app for OpenWrt / ImmortalWrt that shows **per-device, per-proxy-node and per-domain traffic statistics** for [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta, the core used by OpenClash).
-
-It reads mihomo's `/connections` API instead of conntrack, so it keeps working on routers with **full-cone NAT** (`kmod-nft-fullcone`), where nlbwmon records nothing.
-
-- Hourly history (up to 72 h) and daily history (up to 30 days), drill-down by device, outbound node and destination host
-- Charts powered by a locally bundled Apache ECharts: trend, node share, device → node Sankey, top destinations
-- Real-time panel connected directly to mihomo's WebSocket API
-- Adapts to Argon / Bootstrap themes in light and dark mode
-- Lightweight: a ucode collector under procd (~1.3% of one core, ~3 MB RSS), no Python / Node / database
-- CLI report: `mihomo-traffic stats [hours] [src|node|host|src,host|...]`
-
-**Install**: download the package from [Releases](https://github.com/hoobnn/luci-app-mihomo-traffic/releases) — `.apk` for OpenWrt 25.12+, `.ipk` for 24.10 — then `apk add --allow-untrusted <file>` or `opkg install <file>`. Requires OpenClash. The UI is currently in Simplified Chinese.
-
-Licensed under Apache-2.0.
