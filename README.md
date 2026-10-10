@@ -151,7 +151,13 @@ ucode -L /usr/share/ucode tests/demo-data.uc               # 在测试路由器�
 uv run --with websockets tests/fake-mihomo.py 19090       # 假的 mihomo WebSocket，给实时面板喂数据
 ```
 
+## 免责声明
+
+- 本插件只统计路由器本机 mihomo 的连接数据，不提供任何代理服务、节点、订阅或规则。
+- 统计内容包括局域网设备的 IP、访问的域名和流量，只保存在路由器本地（`/etc/mihomo-traffic/`），插件本身不会把数据发到路由器以外的地方。请只在你有权管理的网络中使用，并告知网络中的其他使用者；记录他人的上网行为前，请确认符合当地关于隐私和个人信息保护的法律法规。
+- 遵守当地法律。本插件仅供学习和管理自有网络使用，不得用于任何违反所在国家或地区法律法规的用途。mihomo / OpenClash 的使用是否合规由使用者自己负责，使用者的行为及其后果与作者无关。
+- 不提供任何担保。统计结果可能有误差（见「工作原理」），因使用本插件导致的数据丢失、设备异常或其他损失，作者不承担责任。
+
 ## 许可证
 
 [Apache-2.0](LICENSE) © 2026 hoobnn。可自由使用、修改和分发，需保留版权声明。内置的 [Apache ECharts](https://echarts.apache.org/) 同为 Apache-2.0，许可证见 [`ECHARTS-LICENSE`](htdocs/luci-static/resources/mihomo-traffic/ECHARTS-LICENSE)。
-

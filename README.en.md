@@ -151,6 +151,13 @@ ucode -L /usr/share/ucode tests/demo-data.uc               # generate 8 days of 
 uv run --with websockets tests/fake-mihomo.py 19090       # fake mihomo WebSocket that feeds the real-time panel
 ```
 
+## Disclaimer
+
+- This app only collects connection data from the mihomo instance on the router itself. It does not provide any proxy service, servers, subscriptions or rules.
+- The statistics include LAN device IPs, the domains they visit and their traffic. They are stored only on the router (`/etc/mihomo-traffic/`), and the app itself never sends them anywhere off the router. Use it only on networks you are entitled to manage, and let the other people on the network know. Before recording other people's network activity, make sure doing so complies with local privacy and personal data laws.
+- Follow local law. This app is for learning and for managing your own network only, and must not be used for any purpose that breaks the laws or regulations of your country or region. Whether your use of mihomo / OpenClash is lawful is your own responsibility, and the author is not responsible for how you use it or the consequences.
+- No warranty. The statistics may be inaccurate (see How it works). The author is not liable for data loss, device problems or any other loss caused by using this app.
+
 ## License
 
 [Apache-2.0](LICENSE) © 2026 hoobnn. Free to use, modify and distribute, provided the copyright notice is kept. The bundled [Apache ECharts](https://echarts.apache.org/) is also Apache-2.0; see [`ECHARTS-LICENSE`](htdocs/luci-static/resources/mihomo-traffic/ECHARTS-LICENSE).
