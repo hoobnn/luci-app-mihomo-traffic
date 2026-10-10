@@ -1,3 +1,5 @@
+<div align="center">
+
 # luci-app-mihomo-traffic: traffic statistics for OpenClash
 
 [![Release](https://img.shields.io/github/v/release/hoobnn/luci-app-mihomo-traffic?style=flat-square)](https://github.com/hoobnn/luci-app-mihomo-traffic/releases/latest)
@@ -6,6 +8,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
 [简体中文](README.md) · **English**
+
+</div>
 
 A LuCI app for OpenWrt / ImmortalWrt. It uses the connection data of [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta, the core behind OpenClash) to break traffic down by device, outbound node and destination domain, with a history view and a real-time speed panel.
 

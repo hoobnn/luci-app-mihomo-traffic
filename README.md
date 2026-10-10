@@ -1,3 +1,5 @@
+<div align="center">
+
 # luci-app-mihomo-traffic：OpenClash 流量统计插件
 
 [![Release](https://img.shields.io/github/v/release/hoobnn/luci-app-mihomo-traffic?style=flat-square)](https://github.com/hoobnn/luci-app-mihomo-traffic/releases/latest)
@@ -6,6 +8,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
 **简体中文** · [English](README.en.md)
+
+</div>
 
 OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash 内核）的连接数据，按设备、出口节点、目标域名统计流量，带历史趋势和实时速率面板。
 
