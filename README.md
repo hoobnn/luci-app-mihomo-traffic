@@ -13,7 +13,7 @@ OpenClash 流量统计插件，按设备、出口节点、目标域名统计流�
 
 </div>
 
-OpenWrt / ImmortalWrt 的 LuCI 插件：基于 mihomo（Clash Meta，OpenClash 内核）的连接数据，按设备、出口节点、目标域名统计流量，带历史趋势和实时速率面板。
+luci-app-mihomo-traffic 是免费开源（Apache-2.0）的 OpenWrt / ImmortalWrt LuCI 插件，为 OpenClash 提供流量统计：基于 mihomo（Clash Meta，OpenClash 内核）的连接数据，按设备、出口节点、目标域名统计流量，带历史趋势和实时速率面板。
 
 开启了全锥形 NAT（`kmod-nft-fullcone`）的路由器上，nlbwmon 收不到 conntrack 事件、统计一直为空；本插件不依赖 conntrack，直接读 mihomo 的连接表，可以替代 nlbwmon 做「哪台设备用了多少流量、走了哪个节点、访问了哪些网站」的统计。
 
@@ -122,6 +122,15 @@ LuCI 页面 ◀── rpcd（ucode 插件 luci.mihomo-traffic）──┘  查�
 
 **会影响网速吗？**
 不会。采集进程只读取 mihomo 的 API，不在转发路径上，以最低优先级（nice 19）运行。
+
+**没装 OpenClash，只用独立的 mihomo（如 Nikki）可以吗？**
+目前不行。采集进程从 OpenClash 的 UCI 配置读取 mihomo 控制端口（`cn_port`，默认 9090）和密钥（`dashboard_password`），没有 OpenClash 配置就无法连接 mihomo。
+
+**数据存在哪里？会保留多久？**
+只存在路由器本地的 `/etc/mihomo-traffic/`，保留 30 天，sysupgrade 时自动保留。不需要时可手动删除该目录。
+
+**和 nlbwmon、neko-master 等怎么选？**
+路由器上开了全锥形 NAT，或想看到每个出口节点、每个域名的流量，用本插件；只需要按设备 / IP 的基础统计且没开全锥形 NAT，nlbwmon 就够用；想要独立于路由器运行的面板，可以看外部面板。对比见上方表格。
 
 ## 从源码构建
 

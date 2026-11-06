@@ -13,7 +13,7 @@ Traffic statistics for OpenClash, broken down by device, outbound node and desti
 
 </div>
 
-A LuCI app for OpenWrt / ImmortalWrt. It uses the connection data of [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta, the core behind OpenClash) to break traffic down by device, outbound node and destination domain, with a history view and a real-time speed panel.
+luci-app-mihomo-traffic is a free, open-source (Apache-2.0) LuCI app for OpenWrt / ImmortalWrt that adds traffic statistics to OpenClash. It uses the connection data of [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta, the core behind OpenClash) to break traffic down by device, outbound node and destination domain, with a history view and a real-time speed panel.
 
 On routers with full-cone NAT (`kmod-nft-fullcone`), nlbwmon never receives conntrack events and its statistics stay empty. This app does not rely on conntrack; it reads mihomo's connection table instead, so it can replace nlbwmon for questions like "which device used how much traffic, through which node, to which sites".
 
@@ -122,6 +122,15 @@ This app counts the bytes of connections that pass through mihomo. Protocol over
 
 **Does it slow down my network?**
 No. The collector only reads mihomo's API, is not in the forwarding path, and runs at the lowest priority (nice 19).
+
+**Can I use it with standalone mihomo (e.g. Nikki) without OpenClash?**
+Not at the moment. The collector reads the mihomo controller port (`cn_port`, default 9090) and secret (`dashboard_password`) from OpenClash's UCI config, so it cannot reach mihomo without that config.
+
+**Where is the data stored, and for how long?**
+Only on the router, in `/etc/mihomo-traffic/`, for 30 days, and it is kept across sysupgrade. Delete the directory if you no longer need it.
+
+**nlbwmon, neko-master or this app?**
+Use this app if your router has full-cone NAT enabled, or you want per-node and per-domain numbers. If you only need basic per-device / per-IP stats and full-cone NAT is off, nlbwmon is enough. For a dashboard that runs outside the router, look at an external panel. See the comparison table above.
 
 ## Build from source
 
